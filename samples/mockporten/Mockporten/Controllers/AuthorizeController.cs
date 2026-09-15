@@ -144,7 +144,11 @@ namespace Mockporten.Controllers
             string code = await _tokenService.GetAuthorizationCode(viewModel);
 
             UriBuilder baseUri = new(viewModel.Redirect_uri);
-            string query = "code=" + WebUtility.UrlEncode(code) + "&state=" + WebUtility.UrlEncode(viewModel.State);
+            // RFC 9207: identify the issuer in the authorization response so the client can reject mix-up attacks.
+            string issuer = _generalSettings.IdProviderEndpoint.TrimEnd('/') + "/";
+            string query = "code=" + WebUtility.UrlEncode(code)
+                + "&state=" + WebUtility.UrlEncode(viewModel.State)
+                + "&iss=" + WebUtility.UrlEncode(issuer);
             baseUri.Query = baseUri.Query != null && baseUri.Query.Length > 1
                 ? baseUri.Query + "&" + query
                 : query;

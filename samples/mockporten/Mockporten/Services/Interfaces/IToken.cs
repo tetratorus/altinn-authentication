@@ -18,6 +18,11 @@ namespace Mockporten.Services.Interface
         Task<string> GetTokenFromCode(string code, string codeVerifier);
 
         /// <summary>
+        /// Redeems a Maskinporten-style JWT-bearer grant (RFC 7523) for a machine access token.
+        /// </summary>
+        Task<(string Token, string Scope)> GetTokenFromJwtGrant(string assertion);
+
+        /// <summary>
         /// Stateless PAR: serializes the authorization request into a signed,
         /// short-lived JWT and returns it (the value to embed in request_uri).
         /// </summary>

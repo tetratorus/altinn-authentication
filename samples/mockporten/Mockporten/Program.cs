@@ -38,6 +38,12 @@ services.AddOptions<KeyVaultSettings>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
+services.AddOptions<CertificateSettings>()
+    .BindConfiguration("CertificateSettings");
+
+services.AddOptions<MaskinportenSettings>()
+    .BindConfiguration("MaskinportenSettings");
+
 services.AddControllersWithViews();
 
 services.AddSingleton<IJwtSigningCertificateProvider, JwtSigningCertificateProvider>();

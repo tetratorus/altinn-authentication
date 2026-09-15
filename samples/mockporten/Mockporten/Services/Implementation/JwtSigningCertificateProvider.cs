@@ -61,10 +61,16 @@ namespace Mockporten.Services
 
                 _certificates = new List<X509Certificate2>();
 
-                List<X509Certificate2> certificates = await GetAllCertificateVersions(
-                    _keyVaultSettings.KeyVaultURI, _keyVaultSettings.MaskinPortenCertSecretId);
-                _certificates.AddRange(certificates);
-              
+                if (string.IsNullOrWhiteSpace(_keyVaultSettings.KeyVaultURI))
+                {
+                    _certificates.Add(LoadCertificateFromFile());
+                }
+                else
+                {
+                    List<X509Certificate2> certificates = await GetAllCertificateVersions(
+                        _keyVaultSettings.KeyVaultURI, _keyVaultSettings.MaskinPortenCertSecretId);
+                    _certificates.AddRange(certificates);
+                }
 
                 // Reuse the same list of certificates for 1 hour.
                 _certificateUpdateTime = DateTime.Now.AddHours(1);
@@ -76,6 +82,21 @@ namespace Mockporten.Services
             {
                 _semaphore.Release();
             }
+        }
+
+        private X509Certificate2 LoadCertificateFromFile()
+        {
+            if (string.IsNullOrWhiteSpace(_certificateSettings.CertificatePath))
+            {
+                throw new InvalidOperationException(
+                    "No signing certificate source configured: set kvSetting:KeyVaultURI or CertificateSettings:CertificatePath.");
+            }
+
+            _logger.LogInformation("Loading signing certificate from file {CertificatePath}", _certificateSettings.CertificatePath);
+            return X509CertificateLoader.LoadPkcs12FromFile(
+                _certificateSettings.CertificatePath,
+                _certificateSettings.CertificatePwd,
+                X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.Exportable);
         }
 
         private async Task<List<X509Certificate2>> GetAllCertificateVersions(string keyVaultUrl, string certificateName)

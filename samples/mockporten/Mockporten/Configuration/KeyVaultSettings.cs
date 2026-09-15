@@ -10,7 +10,6 @@ namespace Mockporten.Configuration
         /// <summary>
         /// Uri to keyvault
         /// </summary>
-        [Required]
         public string KeyVaultURI { get; set; }
 
         /// <summary>

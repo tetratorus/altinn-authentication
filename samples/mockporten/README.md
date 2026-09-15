@@ -77,7 +77,8 @@ itself a signed JWT; no session store):
 | `GET /Authorize` | Renders the test login form, or resolves a PAR `request_uri` (404 if disabled). |
 | `POST /Authorize` | Validates shared password → Tenor gate → issues code & redirects. |
 | `POST /par` | Pushes an authorization request, returns an opaque `request_uri` (404 if disabled). |
-| `POST /token` | Exchanges the authorization code for tokens (404 if disabled). |
+| `POST /token` | Exchanges the authorization code for tokens (404 if disabled). Also accepts `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer` when `MaskinportenSettings:Enabled` is true. |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 metadata for machine (Maskinporten-style) clients. |
 | `GET /api/v1/openid/.well-known/openid-configuration` | OIDC discovery document. |
 | `GET /api/v1/openid/.well-known/openid-configuration/jwks` | Signing keys (JWKS, with x5c chain). |
 | `GET /` | Information page (clearly marked test-only). |
@@ -103,6 +104,34 @@ Key Vault is added as a configuration source from `kvSetting:KeyVaultURI`
 `GeneralSettings:TestIdpSharedPassword` (the Key Vault config provider maps
 `--` → `:`). The signing certificate is read from the same vault
 (`kvSetting:MaskinPortenCertSecretId`, default `idprovider-signing-cert-1`).
+When `kvSetting:KeyVaultURI` is empty (local/container runs without Azure), the
+signing certificate is instead loaded from the PKCS#12 file at
+`CertificateSettings:CertificatePath` / `CertificateSettings:CertificatePwd`.
+
+### Maskinporten-style machine tokens (local runtimes)
+
+Altinn apps obtain service-owner tokens by exchanging a Maskinporten token at
+Authentication's `/exchange/maskinporten`. To exercise that path without the
+real Maskinporten, Mockporten can act as an RFC 7523 JWT-bearer authorization
+server. It is off by default; register synthetic clients under
+`MaskinportenSettings`:
+
+```jsonc
+"MaskinportenSettings": {
+  "Enabled": true,
+  "Clients": [{
+    "ClientId": "<client_id, used as the grant iss>",
+    "OrgNo": "<synthetic org number, becomes consumer 0192:<OrgNo>>",
+    "PublicJwk": "{\"kty\":\"RSA\",\"n\":\"...\",\"e\":\"AQAB\"}",
+    "AllowedScopes": ["altinn:serviceowner/instances.read"]
+  }]
+}
+```
+
+The grant must be signed by the client's registered key, have `iss=ClientId`,
+`aud=IssToken`, a lifetime, and only scopes in `AllowedScopes` (empty list ⇒
+any). The issued token carries `iss`, `client_id`, `scope`, `consumer` and
+`jti`, signed with the same certificate as the OIDC tokens.
 
 ## Using it as a client
 
@@ -164,7 +193,11 @@ Unit tests (`Mockporten.Tests`) cover the load-bearing invariant: the synthetic
 Tenor gate (ordinary fnr, real D-number, broken mod11, malformed input all
 rejected; valid synthetic — including synthetic D-number — accepted) and the
 shared-password validator (constant-time match, fail-closed when unconfigured,
-lockout after N failures, counter reset on success).
+lockout after N failures, counter reset on success), the single-valued `acr`
+claim, and the JWT-bearer grant (disabled by default, unknown client, wrong key,
+wrong audience and out-of-allow-list scope all rejected).
+
+`Dockerfile` builds a container image (`docker build -t mockporten samples/mockporten`).
 
 ## Deployment requirements
 
