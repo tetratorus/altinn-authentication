@@ -56,6 +56,7 @@ sequenceDiagram
 
 - **Idempotency / dedup:** a request is keyed by `ExternalRequestId(OrgNo, ExternalRef, SystemId)` — re-posting the same triple returns the existing request rather than creating a duplicate.
 - **Status:** a request moves from a pending state to `Accepted` / `Rejected` (see `RequestStatus`). The vendor reads status via the `vendor/...` GET endpoints; the customer approves/rejects via the `{party}/{requestId}/approve|reject` endpoints.
+- **Pending lists:** `GET {party}/{orgno}/pending` and `GET agent/{party}/{orgno}/pending` are authorized (PDP) against `{party}` only, so the service resolves `{party}` via Register and rejects the call (`PartyId_Request_Mismatch` / `PartyId_AgentRequest_Mismatch`, 403) unless `{orgno}` is that party's organisation number. Never query by `{orgno}` alone.
 - **Confirmation URL:** built from the host + request id (with the `DONTCHOOSEREPORTEE` parameter for the portal), this is where the customer is sent to approve. The portal redirects through to the Access Management UI.
 
 ## Agent system users & client delegation
