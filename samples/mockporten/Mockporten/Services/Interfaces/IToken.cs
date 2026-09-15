@@ -20,7 +20,7 @@ namespace Mockporten.Services.Interface
         /// <summary>
         /// Redeems a Maskinporten-style JWT-bearer grant (RFC 7523) for a machine access token.
         /// </summary>
-        Task<(string Token, string Scope)> GetTokenFromJwtGrant(string assertion);
+        Task<(string Token, string Scope, int ExpiresInSeconds)> GetTokenFromJwtGrant(string assertion);
 
         /// <summary>
         /// Stateless PAR: serializes the authorization request into a signed,

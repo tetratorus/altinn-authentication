@@ -45,12 +45,12 @@ namespace Mockporten.Controllers
             {
                 try
                 {
-                    (string accessToken, string scope) = await _tokenService.GetTokenFromJwtGrant(assertion);
+                    (string accessToken, string scope, int expiresIn) = await _tokenService.GetTokenFromJwtGrant(assertion);
                     return Ok(new
                     {
                         access_token = accessToken,
                         token_type = "Bearer",
-                        expires_in = _generalSettings.JwtValidityMinutes * 60,
+                        expires_in = expiresIn,
                         scope,
                     });
                 }

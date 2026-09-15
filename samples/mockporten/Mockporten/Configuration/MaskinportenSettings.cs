@@ -27,7 +27,7 @@ namespace Mockporten.Configuration
         /// <summary>Public RSA JSON Web Key (JWK JSON) used to verify the grant signature.</summary>
         public string PublicJwk { get; set; } = string.Empty;
 
-        /// <summary>Scopes this client may request. Empty means any requested scope is granted.</summary>
+        /// <summary>Scopes this client may request. A grant requesting a scope outside this list, or no scope at all, is rejected.</summary>
         public List<string> AllowedScopes { get; set; } = new();
     }
 }

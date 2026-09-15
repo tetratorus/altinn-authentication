@@ -41,7 +41,10 @@ namespace Mockporten.Tests
             public Task<List<X509Certificate2>> GetCertificates() => Task.FromResult(new List<X509Certificate2> { _cert });
         }
 
-        private static TokenService NewService(bool enabled = true, params string[] allowedScopes)
+        private static TokenService NewService(bool enabled = true, params string[] allowedScopes) =>
+            NewService(2, enabled, allowedScopes);
+
+        private static TokenService NewService(int validityMinutes, bool enabled, params string[] allowedScopes)
         {
             MaskinportenSettings settings = new()
             {
@@ -59,7 +62,12 @@ namespace Mockporten.Tests
             };
 
             return new TokenService(
-                Options.Create(new GeneralSettings { IssToken = Issuer, JwtValidityMinutes = 2 }),
+                Options.Create(new GeneralSettings
+                {
+                    IdProviderEndpoint = Issuer,
+                    IssToken = Issuer + "authorization",
+                    JwtValidityMinutes = validityMinutes,
+                }),
                 Options.Create(settings),
                 new StaticCertificateProvider(),
                 NullLogger<TokenService>.Instance);
@@ -72,13 +80,25 @@ namespace Mockporten.Tests
             return System.Text.Json.JsonSerializer.Serialize(new { kty = jwk.Kty, n = jwk.N, e = jwk.E });
         }
 
-        private static string Grant(string scope, RSA? signWith = null, string audience = Issuer, string issuer = ClientId)
+        private static string Grant(
+            string scope,
+            RSA? signWith = null,
+            string audience = Issuer,
+            string issuer = ClientId,
+            string algorithm = SecurityAlgorithms.RsaSha256,
+            string? jti = null)
         {
-            SigningCredentials creds = new(new RsaSecurityKey(signWith ?? ClientKey), SecurityAlgorithms.RsaSha256);
+            SigningCredentials creds = new(new RsaSecurityKey(signWith ?? ClientKey), algorithm);
+            List<Claim> claims = new() { new Claim("scope", scope) };
+            if (jti != string.Empty)
+            {
+                claims.Add(new Claim("jti", jti ?? Guid.NewGuid().ToString()));
+            }
+
             JwtSecurityToken token = new(
                 issuer,
                 audience,
-                new[] { new Claim("scope", scope), new Claim("jti", Guid.NewGuid().ToString()) },
+                claims,
                 DateTime.UtcNow.AddSeconds(-5),
                 DateTime.UtcNow.AddSeconds(60),
                 creds);
@@ -133,13 +153,75 @@ namespace Mockporten.Tests
         }
 
         [Fact]
+        public async Task EmptyAllowList_RejectsEveryScope()
+        {
+            OidcRequestException ex = await Assert.ThrowsAsync<OidcRequestException>(
+                () => NewService().GetTokenFromJwtGrant(Grant("altinn:serviceowner")));
+
+            Assert.Equal("invalid_scope", ex.Error);
+        }
+
+        [Fact]
+        public async Task NoScope_IsRejected()
+        {
+            OidcRequestException ex = await Assert.ThrowsAsync<OidcRequestException>(
+                () => NewService(true, "altinn:serviceowner").GetTokenFromJwtGrant(Grant(string.Empty)));
+
+            Assert.Equal("invalid_scope", ex.Error);
+        }
+
+        [Fact]
+        public async Task NonRs256Algorithm_IsRejected()
+        {
+            OidcRequestException ex = await Assert.ThrowsAsync<OidcRequestException>(
+                () => NewService(true, "altinn:serviceowner")
+                    .GetTokenFromJwtGrant(Grant("altinn:serviceowner", algorithm: SecurityAlgorithms.RsaSsaPssSha256)));
+
+            Assert.Equal("invalid_grant", ex.Error);
+        }
+
+        [Fact]
+        public async Task MissingJti_IsRejected()
+        {
+            OidcRequestException ex = await Assert.ThrowsAsync<OidcRequestException>(
+                () => NewService(true, "altinn:serviceowner").GetTokenFromJwtGrant(Grant("altinn:serviceowner", jti: string.Empty)));
+
+            Assert.Equal("invalid_grant", ex.Error);
+        }
+
+        [Fact]
+        public async Task ReplayedAssertion_IsRejected()
+        {
+            TokenService service = NewService(true, "altinn:serviceowner");
+            string assertion = Grant("altinn:serviceowner");
+
+            await service.GetTokenFromJwtGrant(assertion);
+            OidcRequestException ex = await Assert.ThrowsAsync<OidcRequestException>(
+                () => service.GetTokenFromJwtGrant(assertion));
+
+            Assert.Equal("invalid_grant", ex.Error);
+        }
+
+        [Fact]
+        public async Task UnsetValidity_FallsBackToOidcAccessTokenLifetime()
+        {
+            (string token, _, int expiresIn) = await NewService(0, true, "altinn:serviceowner")
+                .GetTokenFromJwtGrant(Grant("altinn:serviceowner"));
+
+            JwtSecurityToken parsed = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            Assert.Equal(TokenService.AccessTokenLifetimeMinutes * 60, expiresIn);
+            Assert.True(parsed.ValidTo > DateTime.UtcNow.AddMinutes(TokenService.AccessTokenLifetimeMinutes - 1));
+        }
+
+        [Fact]
         public async Task ValidGrant_MintsMaskinportenStyleToken()
         {
-            (string token, string scope) = await NewService(true, "altinn:serviceowner")
+            (string token, string scope, int expiresIn) = await NewService(true, "altinn:serviceowner")
                 .GetTokenFromJwtGrant(Grant("altinn:serviceowner"));
 
             JwtSecurityToken parsed = new JwtSecurityTokenHandler().ReadJwtToken(token);
             Assert.Equal("altinn:serviceowner", scope);
+            Assert.Equal(120, expiresIn);
             Assert.Equal(Issuer, parsed.Issuer);
             Assert.Equal(ClientId, parsed.Payload["client_id"]);
             Assert.Contains("0192:991825827", parsed.Payload["consumer"].ToString());

@@ -6,6 +6,7 @@ RUN dotnet publish ./Mockporten/Mockporten.csproj -c Release -o app_output --no-
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS final
 EXPOSE 5090
+ENV ASPNETCORE_HTTP_PORTS=5090
 WORKDIR /app
 COPY --from=build /app/app_output .
 

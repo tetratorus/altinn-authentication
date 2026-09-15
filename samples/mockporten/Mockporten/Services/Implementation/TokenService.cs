@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
@@ -32,6 +33,7 @@ namespace Mockporten.Services.Implementation
         private readonly MaskinportenSettings _maskinportenSettings;
         private readonly ILogger<TokenService> _logger;
         private readonly JwtSecurityTokenHandler _validator;
+        private readonly ConcurrentDictionary<string, DateTime> _redeemedGrants = new();
 
         public TokenService(
             IOptions<GeneralSettings> generalSettings,
@@ -174,7 +176,7 @@ namespace Mockporten.Services.Implementation
             return await GenerateAccessToken(principal, DateTime.UtcNow.AddMinutes(AccessTokenLifetimeMinutes));
         }
 
-        public async Task<(string Token, string Scope)> GetTokenFromJwtGrant(string assertion)
+        public async Task<(string Token, string Scope, int ExpiresInSeconds)> GetTokenFromJwtGrant(string assertion)
         {
             if (!_maskinportenSettings.Enabled)
             {
@@ -198,11 +200,12 @@ namespace Mockporten.Services.Implementation
                 throw new OidcRequestException("invalid_client", "Unknown client");
             }
 
-            string issuer = _generalSettings.IssToken.TrimEnd('/') + "/";
+            string issuer = MachineIssuer;
             TokenValidationParameters validationParameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new JsonWebKey(client.PublicJwk),
+                ValidAlgorithms = new[] { SecurityAlgorithms.RsaSha256 },
                 ValidateIssuer = true,
                 ValidIssuer = client.ClientId,
                 ValidateAudience = true,
@@ -221,18 +224,37 @@ namespace Mockporten.Services.Implementation
                 throw new OidcRequestException("invalid_grant", "Assertion validation failed: " + ex.Message);
             }
 
-            string scope = GetClaim(grant, "scope") ?? string.Empty;
-            if (client.AllowedScopes.Count > 0)
+            string jti = GetClaim(grant, "jti");
+            if (string.IsNullOrEmpty(jti))
             {
-                string[] denied = scope.Split(' ', StringSplitOptions.RemoveEmptyEntries)
-                    .Where(s => !client.AllowedScopes.Contains(s))
-                    .ToArray();
-                if (denied.Length > 0)
-                {
-                    throw new OidcRequestException("invalid_scope", "Scope not granted to client: " + string.Join(' ', denied));
-                }
+                throw new OidcRequestException("invalid_grant", "Assertion has no jti");
             }
 
+            DateTime now = DateTime.UtcNow;
+            foreach (KeyValuePair<string, DateTime> expired in _redeemedGrants.Where(kv => kv.Value < now).ToList())
+            {
+                _redeemedGrants.TryRemove(expired.Key, out _);
+            }
+
+            if (!_redeemedGrants.TryAdd(client.ClientId + "|" + jti, grant.ValidTo.AddSeconds(10)))
+            {
+                throw new OidcRequestException("invalid_grant", "Assertion has already been redeemed");
+            }
+
+            string[] requestedScopes = (GetClaim(grant, "scope") ?? string.Empty)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (requestedScopes.Length == 0)
+            {
+                throw new OidcRequestException("invalid_scope", "Assertion requests no scope");
+            }
+
+            string[] denied = requestedScopes.Where(s => !client.AllowedScopes.Contains(s)).ToArray();
+            if (denied.Length > 0)
+            {
+                throw new OidcRequestException("invalid_scope", "Scope not granted to client: " + string.Join(' ', denied));
+            }
+
+            string scope = string.Join(' ', requestedScopes);
             string consumer = JsonSerializer.Serialize(new { authority = "iso6523-actorid-upis", ID = "0192:" + client.OrgNo });
             List<Claim> claims = new List<Claim>
             {
@@ -246,9 +268,18 @@ namespace Mockporten.Services.Implementation
 
             ClaimsIdentity identity = new("maskinporten");
             identity.AddClaims(claims);
-            string token = await GenerateAccessToken(new ClaimsPrincipal(identity), DateTime.UtcNow.AddMinutes(_generalSettings.JwtValidityMinutes));
-            return (token, scope);
+            int lifetimeMinutes = _generalSettings.JwtValidityMinutes > 0
+                ? _generalSettings.JwtValidityMinutes
+                : AccessTokenLifetimeMinutes;
+            string token = await GenerateAccessToken(new ClaimsPrincipal(identity), now.AddMinutes(lifetimeMinutes));
+            return (token, scope, lifetimeMinutes * 60);
         }
+
+        /// <summary>
+        /// Issuer of machine (Maskinporten-style) tokens. Same value as the RFC 8414 metadata issuer, so that the
+        /// well-known endpoint configured in Altinn Authentication matches the <c>iss</c> of the minted token.
+        /// </summary>
+        public string MachineIssuer => _generalSettings.IdProviderEndpoint.TrimEnd('/') + "/";
 
         public async Task<string> CreateRequestObject(OidcAuthorizationModel m)
         {

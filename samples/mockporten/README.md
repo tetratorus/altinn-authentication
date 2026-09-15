@@ -129,9 +129,12 @@ server. It is off by default; register synthetic clients under
 ```
 
 The grant must be signed by the client's registered key, have `iss=ClientId`,
-`aud=IssToken`, a lifetime, and only scopes in `AllowedScopes` (empty list ⇒
-any). The issued token carries `iss`, `client_id`, `scope`, `consumer` and
-`jti`, signed with the same certificate as the OIDC tokens.
+`aud=IdProviderEndpoint` (the RFC 8414 metadata issuer), be RS256-signed, have a
+lifetime and a `jti` (each `jti` is accepted once), and request at least one
+scope, all of which must be in `AllowedScopes`. The issued token carries
+`iss=IdProviderEndpoint`, `client_id`, `scope`, `consumer` and `jti`, signed with
+the same certificate as the OIDC tokens, and lives `GeneralSettings:JwtValidityMinutes`
+(falls back to the OIDC access-token lifetime when unset).
 
 ## Using it as a client
 
