@@ -74,5 +74,6 @@ An **agent** system user acts on behalf of **multiple clients** — the classic 
 ## Related
 
 - The Maskinporten token that a system user ultimately presents is exchanged for an Altinn JWT in [token-exchange.md](token-exchange.md).
+- System-user controllers derive the vendor organisation number from the validated principal's `consumer` claim.
 - Why enterprise users were removed in favour of system users: [ADR-0004](../adr/0004-sbl-bridge-altinn2-decommission.md).
 - Authoritative concept + onboarding docs: [docs.altinn.studio — System User](https://docs.altinn.studio/authentication/what-do-you-get/systemuser/).

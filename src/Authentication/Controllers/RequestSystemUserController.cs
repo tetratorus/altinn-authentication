@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -15,7 +14,6 @@ using Altinn.Platform.Authentication.Filters;
 using Altinn.Platform.Authentication.Helpers;
 using Altinn.Platform.Authentication.Model;
 using Altinn.Platform.Authentication.Services.Interfaces;
-using AltinnCore.Authentication.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -195,18 +193,13 @@ public class RequestSystemUserController : ControllerBase
 
     private OrganisationNumber? RetrieveOrgNoFromToken()
     {
-        string token = JwtTokenUtil.GetTokenFromContext(HttpContext, _generalSettings.JwtCookieName);
-        JwtSecurityToken jwtSecurityToken = new(token);
-        foreach (Claim claim in jwtSecurityToken.Claims)
+        Claim? consumer = User.FindFirst("consumer");
+        if (consumer is null || string.IsNullOrWhiteSpace(consumer.Value))
         {
-            // ID-porten specific claims
-            if (claim.Type.Equals("consumer"))
-            {
-                return OrganisationNumber.CreateFromMaskinPortenToken(claim.Value);
-            }
+            return null;
         }
 
-        return null;
+        return OrganisationNumber.CreateFromMaskinPortenToken(consumer.Value);
     }
 
     /// <summary>
