@@ -19,6 +19,7 @@ namespace Mockporten.Tests
         private static TokenService NewService() =>
             new TokenService(
                 Options.Create(new GeneralSettings { IssCode = "https://test-idp.example" }),
+                Options.Create(new MaskinportenSettings()),
                 certificateProvider: null,
                 logger: null);
 

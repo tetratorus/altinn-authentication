@@ -41,9 +41,28 @@ namespace Mockporten.Controllers
                 return NotFound();
             }
 
+            if (string.Equals(grant_type, "urn:ietf:params:oauth:grant-type:jwt-bearer", StringComparison.Ordinal))
+            {
+                try
+                {
+                    (string accessToken, string scope) = await _tokenService.GetTokenFromJwtGrant(assertion);
+                    return Ok(new
+                    {
+                        access_token = accessToken,
+                        token_type = "Bearer",
+                        expires_in = _generalSettings.JwtValidityMinutes * 60,
+                        scope,
+                    });
+                }
+                catch (OidcRequestException ex)
+                {
+                    return BadRequest(new { error = ex.Error, error_description = ex.Message });
+                }
+            }
+
             if (!string.Equals(grant_type, "authorization_code", StringComparison.Ordinal))
             {
-                return BadRequest(new { error = "unsupported_grant_type", error_description = "Only authorization_code is supported" });
+                return BadRequest(new { error = "unsupported_grant_type", error_description = "Only authorization_code and jwt-bearer are supported" });
             }
 
             string token;

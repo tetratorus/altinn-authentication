@@ -29,15 +29,18 @@ namespace Mockporten.Services.Implementation
 
         private readonly IJwtSigningCertificateProvider _certificateProvider;
         private readonly GeneralSettings _generalSettings;
+        private readonly MaskinportenSettings _maskinportenSettings;
         private readonly ILogger<TokenService> _logger;
         private readonly JwtSecurityTokenHandler _validator;
 
         public TokenService(
             IOptions<GeneralSettings> generalSettings,
+            IOptions<MaskinportenSettings> maskinportenSettings,
             IJwtSigningCertificateProvider certificateProvider,
             ILogger<TokenService> logger)
         {
             _generalSettings = generalSettings.Value;
+            _maskinportenSettings = maskinportenSettings.Value;
             _certificateProvider = certificateProvider;
             _logger = logger;
             _validator = new JwtSecurityTokenHandler();
@@ -169,6 +172,82 @@ namespace Mockporten.Services.Implementation
                 c.Type != "code_challenge" && c.Type != "code_challenge_method" && c.Type != TokenUseClaim));
             ClaimsPrincipal principal = new ClaimsPrincipal(identity);
             return await GenerateAccessToken(principal, DateTime.UtcNow.AddMinutes(AccessTokenLifetimeMinutes));
+        }
+
+        public async Task<(string Token, string Scope)> GetTokenFromJwtGrant(string assertion)
+        {
+            if (!_maskinportenSettings.Enabled)
+            {
+                throw new OidcRequestException("unsupported_grant_type", "JWT-bearer grant is not enabled");
+            }
+
+            JwtSecurityToken grant;
+            try
+            {
+                grant = _validator.ReadJwtToken(assertion);
+            }
+            catch (ArgumentException)
+            {
+                throw new OidcRequestException("invalid_grant", "Assertion is not a JWT");
+            }
+
+            MaskinportenClient client = _maskinportenSettings.Clients
+                .FirstOrDefault(c => string.Equals(c.ClientId, grant.Issuer, StringComparison.Ordinal));
+            if (client == null)
+            {
+                throw new OidcRequestException("invalid_client", "Unknown client");
+            }
+
+            string issuer = _generalSettings.IssToken.TrimEnd('/') + "/";
+            TokenValidationParameters validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new JsonWebKey(client.PublicJwk),
+                ValidateIssuer = true,
+                ValidIssuer = client.ClientId,
+                ValidateAudience = true,
+                ValidAudiences = new[] { issuer, issuer.TrimEnd('/') },
+                RequireExpirationTime = true,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromSeconds(10)
+            };
+
+            try
+            {
+                _validator.ValidateToken(assertion, validationParameters, out _);
+            }
+            catch (SecurityTokenException ex)
+            {
+                throw new OidcRequestException("invalid_grant", "Assertion validation failed: " + ex.Message);
+            }
+
+            string scope = GetClaim(grant, "scope") ?? string.Empty;
+            if (client.AllowedScopes.Count > 0)
+            {
+                string[] denied = scope.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(s => !client.AllowedScopes.Contains(s))
+                    .ToArray();
+                if (denied.Length > 0)
+                {
+                    throw new OidcRequestException("invalid_scope", "Scope not granted to client: " + string.Join(' ', denied));
+                }
+            }
+
+            string consumer = JsonSerializer.Serialize(new { authority = "iso6523-actorid-upis", ID = "0192:" + client.OrgNo });
+            List<Claim> claims = new List<Claim>
+            {
+                new Claim("iss", issuer, ClaimValueTypes.String, issuer),
+                new Claim("client_id", client.ClientId, ClaimValueTypes.String, issuer),
+                new Claim("scope", scope, ClaimValueTypes.String, issuer),
+                new Claim("token_type", "Bearer", ClaimValueTypes.String, issuer),
+                new Claim("jti", Guid.NewGuid().ToString("N"), ClaimValueTypes.String, issuer),
+                new Claim("consumer", consumer, JsonClaimValueTypes.Json, issuer),
+            };
+
+            ClaimsIdentity identity = new("maskinporten");
+            identity.AddClaims(claims);
+            string token = await GenerateAccessToken(new ClaimsPrincipal(identity), DateTime.UtcNow.AddMinutes(_generalSettings.JwtValidityMinutes));
+            return (token, scope);
         }
 
         public async Task<string> CreateRequestObject(OidcAuthorizationModel m)
