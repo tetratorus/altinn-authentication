@@ -132,12 +132,12 @@ namespace Altinn.Platform.Authentication.Tests.Mocks
             throw new NotImplementedException();
         }
 
-        Task<Result<List<RequestSystemResponse>>> IRequestSystemUser.GetPendingStandardRequests(string orgno, int userId, CancellationToken cancellationToken)
+        Task<Result<List<RequestSystemResponse>>> IRequestSystemUser.GetPendingStandardRequests(int partyId, string orgno, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }
 
-        Task<Result<List<AgentRequestSystemResponse>>> IRequestSystemUser.GetPendingAgentRequests(string orgno, int userId, CancellationToken cancellationToken)
+        Task<Result<List<AgentRequestSystemResponse>>> IRequestSystemUser.GetPendingAgentRequests(int partyId, string orgno, CancellationToken cancellationToken)
         {
             throw new NotImplementedException();
         }

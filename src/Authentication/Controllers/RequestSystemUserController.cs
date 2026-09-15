@@ -673,8 +673,7 @@ public class RequestSystemUserController : ControllerBase
     [HttpGet("{party}/{orgno}/pending")]
     public async Task<ActionResult<List<RequestSystemResponse>>> GetPendingStandardRequests(int party, string orgno, CancellationToken cancellationToken = default)
     {
-        int userId = AuthenticationHelper.GetUserId(HttpContext);
-        Result<List<RequestSystemResponse>> response = await _requestSystemUser.GetPendingStandardRequests(orgno, userId, cancellationToken);
+        Result<List<RequestSystemResponse>> response = await _requestSystemUser.GetPendingStandardRequests(party, orgno, cancellationToken);
         if (response.IsProblem)
         {
             return response.Problem.ToActionResult();
@@ -700,8 +699,7 @@ public class RequestSystemUserController : ControllerBase
     [HttpGet("agent/{party}/{orgno}/pending")]
     public async Task<ActionResult<List<AgentRequestSystemResponse>>> GetPendingAgentRequests(int party, string orgno, CancellationToken cancellationToken = default)
     {
-        int userId = AuthenticationHelper.GetUserId(HttpContext);
-        Result<List<AgentRequestSystemResponse>> response = await _requestSystemUser.GetPendingAgentRequests(orgno, userId, cancellationToken);
+        Result<List<AgentRequestSystemResponse>> response = await _requestSystemUser.GetPendingAgentRequests(party, orgno, cancellationToken);
         if (response.IsProblem)
         {
             return response.Problem.ToActionResult();

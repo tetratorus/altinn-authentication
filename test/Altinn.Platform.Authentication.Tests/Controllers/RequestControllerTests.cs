@@ -1644,6 +1644,41 @@ public class RequestControllerTests(
         Assert.Single(requests);
         Assert.True(requests[0].Escalated);
     }
+
+    [Fact]
+    public async Task Get_PendingRequests_OrgNoNotBelongingToParty_Forbidden()
+    {
+        string dataFileName = "Data/SystemRegister/Json/SystemRegisterWithAccessPackage.json";
+        HttpResponseMessage response = await CreateSystemRegister(dataFileName);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        HttpClient client = CreateClient();
+        AddSystemUserRequestWriteTestTokenToClient(client);
+
+        CreateRequestSystemUser req = new()
+        {
+            ExternalRef = "external",
+            SystemId = "991825827_the_matrix",
+            PartyOrgNo = "910493353",
+            Rights = [],
+            AccessPackages = [new AccessPackage { Urn = "urn:altinn:accesspackage:skatt-naering" }]
+        };
+
+        HttpResponseMessage message = await client.SendAsync(new HttpRequestMessage(HttpMethod.Post, "/authentication/api/v1/systemuser/request/vendor") { Content = JsonContent.Create(req) }, HttpCompletionOption.ResponseHeadersRead);
+        Assert.Equal(HttpStatusCode.Created, message.StatusCode);
+
+        HttpClient client2 = CreateClient();
+        client2.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(1337, null, 3, true, now: TestTime));
+
+        // User 1337 is access manager for party 500004 (orgno 910493354), but the requested orgno belongs to party 500000.
+        int otherPartyId = 500004;
+
+        HttpResponseMessage standard = await client2.GetAsync($"/authentication/api/v1/systemuser/request/{otherPartyId}/{req.PartyOrgNo}/pending");
+        Assert.Equal(HttpStatusCode.Forbidden, standard.StatusCode);
+
+        HttpResponseMessage agent = await client2.GetAsync($"/authentication/api/v1/systemuser/request/agent/{otherPartyId}/{req.PartyOrgNo}/pending");
+        Assert.Equal(HttpStatusCode.Forbidden, agent.StatusCode);
+    }
        
     [Fact]
     public async Task Get_AgentRequest_Only_By_RequestId()
