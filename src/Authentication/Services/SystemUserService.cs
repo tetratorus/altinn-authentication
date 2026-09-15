@@ -866,6 +866,18 @@ namespace Altinn.Platform.Authentication.Services
                 return Problem.AccessPackage_NotFound;
             }
 
+            // The provider (facilitator) must be the party that owns the agent system user
+            if (!int.TryParse(systemUser.PartyId, out int ownerPartyId))
+            {
+                return Problem.AgentSystemUser_InvalidDelegationFacilitator;
+            }
+
+            Party? ownerParty = await _partiesClient.GetPartyAsync(ownerPartyId, cancellationToken);
+            if (ownerParty?.PartyUuid is null || ownerParty.PartyUuid.Value != provider)
+            {
+                return Problem.AgentSystemUser_InvalidDelegationFacilitator;
+            }
+
             // 2 Get the Client and verify it has the requested AP list in it's Access, and to get the Role-Package mapping needed for the delegation call to AM, if not return error             
             Result<List<RoleAccessPackagesPrimitive>> values = await ValidateClientForAgentSystemUser(packages, provider, client, cancellationToken);
             if (values.IsProblem)
