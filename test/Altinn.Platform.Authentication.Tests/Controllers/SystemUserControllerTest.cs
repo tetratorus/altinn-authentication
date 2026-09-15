@@ -1930,7 +1930,7 @@ namespace Altinn.Platform.Authentication.Tests.Controllers
             int partyId = 500000;
 
             Guid clientId = Guid.NewGuid();
-            Guid facilitator = Guid.NewGuid();
+            Guid facilitator = new Guid("00000000-0000-0000-0005-000000000000");
 
             HttpRequestMessage clientListRequest = new(HttpMethod.Get, $"/authentication/api/v1/systemuser/agent/{partyId}/clients?facilitator={facilitator}");
             clientListRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(1337, null, 3, now: TestTime));
@@ -1954,7 +1954,7 @@ namespace Altinn.Platform.Authentication.Tests.Controllers
             int partyId = 500000;
 
             Guid clientId = Guid.NewGuid();
-            Guid facilitator = Guid.NewGuid();
+            Guid facilitator = new Guid("00000000-0000-0000-0005-000000000000");
 
             HttpRequestMessage clientListRequest = new(HttpMethod.Get, $"/authentication/api/v1/systemuser/agent/{partyId}/clients?facilitator={facilitator}&packages={accessPackage1}&packages={accessPackage2}");
             clientListRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(1337, null, 3, now: TestTime));
@@ -1980,7 +1980,7 @@ namespace Altinn.Platform.Authentication.Tests.Controllers
             int partyId = 500000;
 
             Guid clientId = Guid.NewGuid();
-            Guid facilitator = Guid.NewGuid();
+            Guid facilitator = new Guid("00000000-0000-0000-0005-000000000000");
 
             HttpRequestMessage clientListRequest = new(HttpMethod.Get, $"/authentication/api/v1/systemuser/agent/{partyId}/clients?facilitator={facilitator}&packages={accessPackage}");
             
@@ -2010,6 +2010,24 @@ namespace Altinn.Platform.Authentication.Tests.Controllers
             HttpResponseMessage clientListResponse = await client2.SendAsync(clientListRequest, HttpCompletionOption.ResponseContentRead);
 
             Assert.Equal(HttpStatusCode.Forbidden, clientListResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task AgentSystemUser_GetClients_FacilitatorNotMatchingParty_Forbidden()
+        {
+            HttpClient client2 = CreateClient();
+
+            // Caller is authorized for party 500000, but asks for another party's clients
+            int partyId = 500000;
+            Guid otherFacilitator = Guid.NewGuid();
+
+            HttpRequestMessage clientListRequest = new(HttpMethod.Get, $"/authentication/api/v1/systemuser/agent/{partyId}/clients?facilitator={otherFacilitator}");
+            clientListRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(1337, null, 3, now: TestTime));
+            HttpResponseMessage clientListResponse = await client2.SendAsync(clientListRequest, HttpCompletionOption.ResponseContentRead);
+
+            Assert.Equal(HttpStatusCode.Forbidden, clientListResponse.StatusCode);
+            var problemDetails = await clientListResponse.Content.ReadFromJsonAsync<ProblemDetails>();
+            Assert.Equal(Problem.AgentSystemUser_FacilitatorPartyMismatch.Title, problemDetails?.Title);
         }
 
         [Fact]
@@ -2265,7 +2283,7 @@ namespace Altinn.Platform.Authentication.Tests.Controllers
             // partyId of the system user that is used to fetch the clients
             int partyId = 500000;
 
-            Guid facilitator = Guid.NewGuid();
+            Guid facilitator = new Guid("00000000-0000-0000-0005-000000000000");
 
             HttpRequestMessage clientListRequest = new(HttpMethod.Get, $"/authentication/api/v1/systemuser/agent/{partyId}/clients?facilitator={facilitator}&packages={accessPackage}");
             clientListRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(1337, null, 3, now: TestTime));
