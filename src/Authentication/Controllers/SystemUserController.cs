@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Altinn.Authentication.Core.Clients.Interfaces;
 using Altinn.Authorization.ProblemDetails;
 using Altinn.Platform.Authentication.Configuration;
 using Altinn.Platform.Authentication.Core.Constants;
@@ -26,6 +27,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;
 using Microsoft.FeatureManagement.Mvc;
+using AuthProblem = Altinn.Authentication.Core.Problems.Problem;
 
 namespace Altinn.Platform.Authentication.Controllers;
 
@@ -43,6 +45,7 @@ public class SystemUserController : ControllerBase
     private readonly IRequestSystemUser _requestSystemUser;
     private readonly IFeatureManager _featureManager;
     private readonly IMapper _mapper;
+    private readonly IPartiesClient _partiesClient;
 
     /// <summary>
     /// Route name for the internal stream of systemusers used by the Registry
@@ -55,18 +58,23 @@ public class SystemUserController : ControllerBase
     /// <param name="systemUserService">The SystemUserService supports this API specifically.</param>
     /// <param name="requestSystemUser">The RequestUserService is called too</param>
     /// <param name="generalSettings">The appsettings needed </param>
+    /// <param name="featureManager">Feature manager</param>
+    /// <param name="mapper">AutoMapper instance</param>
+    /// <param name="partiesClient">Client for looking up parties in the Register</param>
     public SystemUserController(
         ISystemUserService systemUserService,
         IRequestSystemUser requestSystemUser,
         IOptions<GeneralSettings> generalSettings,
         IFeatureManager featureManager,
-        IMapper mapper)
+        IMapper mapper,
+        IPartiesClient partiesClient)
     {
         _systemUserService = systemUserService;
         _generalSettings = generalSettings.Value;
         _requestSystemUser = requestSystemUser;
         _featureManager = featureManager;
         _mapper = mapper;
+        _partiesClient = partiesClient;
     }
 
     /// <summary>
@@ -488,6 +496,28 @@ public class SystemUserController : ControllerBase
         [FromQuery] Guid provider,
         CancellationToken cancellationToken = default)
     {
+        SystemUserInternalDTO? systemUser = await _systemUserService.GetSingleSystemUserById(systemuser);
+        if (systemUser is null)
+        {
+            return AuthProblem.SystemUserNotFound.ToActionResult();
+        }
+
+        if (systemUser.PartyId != party)
+        {
+            return Forbid();
+        }
+
+        if (systemUser.UserType != SystemUserType.Agent)
+        {
+            return AuthProblem.AgentSystemUser_ExpectedAgentUserType.ToActionResult();
+        }
+
+        Party? reportee = int.TryParse(party, out int partyId) ? await _partiesClient.GetPartyAsync(partyId, cancellationToken) : null;
+        if (reportee?.PartyUuid != provider)
+        {
+            return AuthProblem.AgentSystemUser_InvalidDelegationFacilitator.ToActionResult();
+        }
+
         Result<bool> result = await _systemUserService.DeleteClientDelegationToAgentSystemUser(party, systemuser, client, provider, cancellationToken);
         if (result.IsSuccess)
         {
