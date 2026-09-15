@@ -81,7 +81,7 @@ namespace Altinn.Platform.Authentication.Controllers
             Guid facilitatorId = party.PartyUuid.Value;
             List<string> packages = [.. systemUser?.AccessPackages.Select(P => P?.Urn != null ? P.Urn.Split(':').Last() : null).Where(p => !string.IsNullOrEmpty(p))];
 
-            var result = await inner.GetClientsForFacilitator(facilitatorId, packages);
+            var result = await inner.GetClientsForFacilitator(party.PartyId, facilitatorId, packages);
 
             // If the result is a problem (not 200 OK), return it directly
             if (result.Result is ObjectResult objectResult && objectResult.StatusCode != 200)

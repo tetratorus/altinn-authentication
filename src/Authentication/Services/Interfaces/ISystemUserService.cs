@@ -178,6 +178,18 @@ public interface ISystemUserService
     Task<Result<List<ExternalClientDto>>> GetClientsForFacilitator(Guid facilitator, List<string>? packages, IFeatureManager featureManager, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Returns a list of clients available for a facilitator, after verifying that the facilitator
+    /// is the PartyUuid of the given (authorized) party.
+    /// </summary>
+    /// <param name="partyId">The PartyId the caller has been authorized for</param>
+    /// <param name="facilitator">The guid id of the Facilitator; must match the party's PartyUuid</param>
+    /// <param name="packages">An array of access package URNs. Only clients associated with at least one of these access packages will be included in the result.</param>
+    /// <param name="featureManager">FeatureManager</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of Clients</returns>
+    Task<Result<List<ExternalClientDto>>> GetClientsForFacilitator(int partyId, Guid facilitator, List<string>? packages, IFeatureManager featureManager, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Delegate access packages to a system user.
     /// </summary>
     /// <param name="partyUuId">the identifier of the party</param>

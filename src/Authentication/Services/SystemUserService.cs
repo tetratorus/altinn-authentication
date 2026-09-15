@@ -1150,6 +1150,18 @@ namespace Altinn.Platform.Authentication.Services
         }
 
         /// <inheritdoc/>
+        public async Task<Result<List<ExternalClientDto>>> GetClientsForFacilitator(int partyId, Guid facilitator, List<string>? packages, IFeatureManager featureManager, CancellationToken cancellationToken)
+        {
+            Party? party = await _partiesClient.GetPartyAsync(partyId, cancellationToken);
+            if (party?.PartyUuid is null || party.PartyUuid != facilitator)
+            {
+                return Problem.AgentSystemUser_FacilitatorPartyMismatch;
+            }
+
+            return await GetClientsForFacilitator(facilitator, packages, featureManager, cancellationToken);
+        }
+
+        /// <inheritdoc/>
         public async Task<Result<List<ExternalClientDto>>> GetClientsForFacilitator(Guid facilitator, List<string>? packages, IFeatureManager featureManager, CancellationToken cancellationToken)
         {
             // The client must hold ALL requested packages (AND), otherwise partially-matching clients are
