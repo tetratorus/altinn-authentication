@@ -1675,9 +1675,13 @@ public class RequestControllerTests(
 
         HttpResponseMessage standard = await client2.GetAsync($"/authentication/api/v1/systemuser/request/{otherPartyId}/{req.PartyOrgNo}/pending");
         Assert.Equal(HttpStatusCode.Forbidden, standard.StatusCode);
+        ProblemDetails? standardProblem = await standard.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("Party does not match request's orgno", standardProblem!.Title);
 
         HttpResponseMessage agent = await client2.GetAsync($"/authentication/api/v1/systemuser/request/agent/{otherPartyId}/{req.PartyOrgNo}/pending");
         Assert.Equal(HttpStatusCode.Forbidden, agent.StatusCode);
+        ProblemDetails? agentProblem = await agent.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("Party does not match agent request's orgno", agentProblem!.Title);
     }
        
     [Fact]
