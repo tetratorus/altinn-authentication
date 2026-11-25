@@ -1645,7 +1645,6 @@ public class RequestControllerTests(
         Assert.True(requests[0].Escalated);
     }
 
-
     [Theory]
     [InlineData("")]
     [InlineData("agent/")]
