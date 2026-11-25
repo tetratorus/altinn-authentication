@@ -502,4 +502,10 @@ public static class Problem
     /// </summary>
     public static ProblemDescriptor SystemIsDeleted { get; }
         = _factory.Create(81, HttpStatusCode.BadRequest, "The Registered System is deleted and cannot be used to create new requests.");
+
+    /// <summary>
+    /// Gets a <see cref="ProblemDescriptor"/>.
+    /// </summary>
+    public static ProblemDescriptor PartyId_OrgNo_Mismatch { get; }
+        = _factory.Create(82, HttpStatusCode.Forbidden, "Party does not match the given organisation number");
 }

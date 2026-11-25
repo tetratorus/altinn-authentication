@@ -1644,6 +1644,24 @@ public class RequestControllerTests(
         Assert.Single(requests);
         Assert.True(requests[0].Escalated);
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("agent/")]
+    public async Task Get_PendingRequests_OrgNoNotBelongingToParty_ReturnsForbidden(string routePrefix)
+    {
+        HttpClient client = CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", PrincipalUtil.GetToken(1337, null, 3, true, now: TestTime));
+
+        // User is authorized for party 500000 (orgno 910493353), but asks for another organisation's requests
+        int partyId = 500000;
+        string otherOrgNo = "910493354";
+
+        string getPendingEndpoint = $"/authentication/api/v1/systemuser/request/{routePrefix}{partyId}/{otherOrgNo}/pending";
+        HttpRequestMessage getPendingReqMessage = new(HttpMethod.Get, getPendingEndpoint);
+        HttpResponseMessage getPendingResponse = await client.SendAsync(getPendingReqMessage, HttpCompletionOption.ResponseHeadersRead);
+        Assert.Equal(HttpStatusCode.Forbidden, getPendingResponse.StatusCode);
+    }
        
     [Fact]
     public async Task Get_AgentRequest_Only_By_RequestId()

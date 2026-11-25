@@ -56,6 +56,7 @@ sequenceDiagram
 
 - **Idempotency / dedup:** a request is keyed by `ExternalRequestId(OrgNo, ExternalRef, SystemId)` — re-posting the same triple returns the existing request rather than creating a duplicate.
 - **Status:** a request moves from a pending state to `Accepted` / `Rejected` (see `RequestStatus`). The vendor reads status via the `vendor/...` GET endpoints; the customer approves/rejects via the `{party}/{requestId}/approve|reject` endpoints.
+- **Pending list (BFF):** `GET .../{party}/{orgno}/pending` (and `agent/{party}/{orgno}/pending`) authorizes on `{party}` and returns `403` unless `{orgno}` is that party's organisation number.
 - **Confirmation URL:** built from the host + request id (with the `DONTCHOOSEREPORTEE` parameter for the portal), this is where the customer is sent to approve. The portal redirects through to the Access Management UI.
 
 ## Agent system users & client delegation

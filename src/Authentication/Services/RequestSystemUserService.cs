@@ -1067,8 +1067,14 @@ public class RequestSystemUserService(
     }
 
     /// <inheritdoc/>
-    public async Task<Result<List<RequestSystemResponse>>> GetPendingStandardRequests(string orgno, int userId, CancellationToken cancellationToken)
+    public async Task<Result<List<RequestSystemResponse>>> GetPendingStandardRequests(int partyId, string orgno, int userId, CancellationToken cancellationToken)
     {
+        Result<bool> validParty = await ValidatePartyOrgNo(partyId, orgno, cancellationToken);
+        if (validParty.IsProblem)
+        {
+            return validParty.Problem;
+        }
+
         List<RequestSystemResponse> theList = [];
         Result<List<RequestSystemResponse>> result = await requestRepository.GetAllPendingStandardRequests(orgno,cancellationToken);
         if (result.IsSuccess)
@@ -1080,8 +1086,14 @@ public class RequestSystemUserService(
     }
 
     /// <inheritdoc/>
-    public async Task<Result<List<AgentRequestSystemResponse>>> GetPendingAgentRequests(string orgno, int userId, CancellationToken cancellationToken)
+    public async Task<Result<List<AgentRequestSystemResponse>>> GetPendingAgentRequests(int partyId, string orgno, int userId, CancellationToken cancellationToken)
     {
+        Result<bool> validParty = await ValidatePartyOrgNo(partyId, orgno, cancellationToken);
+        if (validParty.IsProblem)
+        {
+            return validParty.Problem;
+        }
+
         List<AgentRequestSystemResponse> theList = [];
         Result<List<AgentRequestSystemResponse>> result = await requestRepository.GetAllPendingAgentRequests(orgno, cancellationToken);
         if (result.IsSuccess)
@@ -1090,5 +1102,21 @@ public class RequestSystemUserService(
         }
 
         return theList;
+    }
+
+    private async Task<Result<bool>> ValidatePartyOrgNo(int partyId, string orgno, CancellationToken cancellationToken)
+    {
+        Party? party = await partiesClient.GetPartyAsync(partyId, cancellationToken);
+        if (party is null || string.IsNullOrEmpty(party.OrgNumber))
+        {
+            return Problem.Reportee_Orgno_NotFound;
+        }
+
+        if (!string.Equals(party.OrgNumber, orgno, StringComparison.Ordinal))
+        {
+            return Problem.PartyId_OrgNo_Mismatch;
+        }
+
+        return true;
     }
 }
