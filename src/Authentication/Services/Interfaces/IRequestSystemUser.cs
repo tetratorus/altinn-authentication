@@ -206,18 +206,20 @@ public interface IRequestSystemUser
     /// <summary>
     /// Gets a list of all the pending Standard Requests for the given organisation number
     /// </summary>
-    /// <param name="orgno">The organisation number</param>
+    /// <param name="partyId">The party id the logged in user is authorized for</param>
+    /// <param name="orgno">The organisation number, must belong to the party</param>
     /// <param name="userId">The logged in user</param>
     /// <param name="cancellationToken">The Cancellationtoken</param>
     /// <returns>List of RequestSystemResponse</returns>
-    Task<Result<List<RequestSystemResponse>>> GetPendingStandardRequests(string orgno, int userId, CancellationToken cancellationToken);
+    Task<Result<List<RequestSystemResponse>>> GetPendingStandardRequests(int partyId, string orgno, int userId, CancellationToken cancellationToken);
 
     /// <summary>
     /// Gets a list of all the pending Agent Requests for the given organisation number
     /// </summary>
-    /// <param name="orgno">The organisation number</param>
+    /// <param name="partyId">The party id the logged in user is authorized for</param>
+    /// <param name="orgno">The organisation number, must belong to the party</param>
     /// <param name="userId">The logged in user</param>
     /// <param name="cancellationToken">The Cancellationtoken</param>
     /// <returns>List of AgentRequestSystemResponse</returns>
-    Task<Result<List<AgentRequestSystemResponse>>> GetPendingAgentRequests(string orgno, int userId, CancellationToken cancellationToken);
+    Task<Result<List<AgentRequestSystemResponse>>> GetPendingAgentRequests(int partyId, string orgno, int userId, CancellationToken cancellationToken);
 }
